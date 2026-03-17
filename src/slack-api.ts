@@ -101,4 +101,10 @@ export class SlackApi {
     if (cursor) params.cursor = cursor;
     return this.call('conversations.list', params);
   }
+
+  async usersSearch(query: string): Promise<{
+    results: Array<{ id: string; name: string; profile: { real_name?: string; display_name?: string } }>;
+  }> {
+    return this.call('users.search', { query, count: '20' });
+  }
 }

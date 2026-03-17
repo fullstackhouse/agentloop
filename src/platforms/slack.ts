@@ -6,11 +6,13 @@ export class SlackAdapter {
   private processing = new Set<string>();
   private timer: ReturnType<typeof setInterval> | null = null;
   private channelIds: Set<string> | null = null;
+  private allowedUserIds: Set<string> | null = null;
 
   constructor(
     private agent: Agent,
     private slackApi: SlackApi,
     private channels?: string[],
+    private users?: string[],
     private pollIntervalMs = 10_000,
   ) {}
 
@@ -21,6 +23,10 @@ export class SlackAdapter {
 
     if (this.channels?.length) {
       await this.resolveChannelIds();
+    }
+
+    if (this.users?.length) {
+      await this.resolveUserIds();
     }
 
     await this.poll(); // initial poll
@@ -53,6 +59,24 @@ export class SlackAdapter {
     console.log(`[slack] Watching channels: ${[...this.channelIds].join(', ')}`);
   }
 
+  private async resolveUserIds(): Promise<void> {
+    this.allowedUserIds = new Set<string>();
+
+    for (const name of this.users!) {
+      const res = await this.slackApi.usersSearch(name);
+      const user = res.results.find(
+        u => u.profile.real_name === name || u.profile.display_name === name
+      );
+      if (user) {
+        this.allowedUserIds.add(user.id);
+      } else {
+        console.warn(`[slack] User not found: ${name}`);
+      }
+    }
+
+    console.log(`[slack] Allowed users: ${[...this.allowedUserIds].join(', ')}`);
+  }
+
   private async poll(): Promise<void> {
     try {
       const result = await this.slackApi.searchMessages(`<@${this.botUserId}>`);
@@ -70,6 +94,9 @@ export class SlackAdapter {
 
         // Channel filter
         if (this.channelIds && !this.channelIds.has(channelId)) continue;
+
+        // User filter
+        if (this.allowedUserIds && !this.allowedUserIds.has(msg.user)) continue;
 
         // Currently processing
         const key = `${channelId}:${msg.ts}`;
