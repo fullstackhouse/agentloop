@@ -60,18 +60,23 @@ export class SlackAdapter {
   }
 
   private async resolveUserIds(): Promise<void> {
+    const names = new Set(this.users!);
     this.allowedUserIds = new Set<string>();
 
-    for (const name of this.users!) {
-      const res = await this.slackApi.usersSearch(name);
-      const user = res.results.find(
-        u => u.profile.real_name === name || u.profile.display_name === name
-      );
-      if (user) {
-        this.allowedUserIds.add(user.id);
-      } else {
-        console.warn(`[slack] User not found: ${name}`);
+    let cursor: string | undefined;
+    do {
+      const res = await this.slackApi.usersList(cursor);
+      for (const user of res.members) {
+        if (names.has(user.profile.real_name || '') || names.has(user.profile.display_name || '')) {
+          this.allowedUserIds.add(user.id);
+        }
       }
+      cursor = res.response_metadata?.next_cursor || undefined;
+    } while (cursor);
+
+    if (this.allowedUserIds.size < names.size) {
+      const found = this.allowedUserIds.size;
+      console.warn(`[slack] Only found ${found}/${names.size} configured users`);
     }
 
     console.log(`[slack] Allowed users: ${[...this.allowedUserIds].join(', ')}`);

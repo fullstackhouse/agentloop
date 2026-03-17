@@ -102,9 +102,12 @@ export class SlackApi {
     return this.call('conversations.list', params);
   }
 
-  async usersSearch(query: string): Promise<{
-    results: Array<{ id: string; name: string; profile: { real_name?: string; display_name?: string } }>;
+  async usersList(cursor?: string): Promise<{
+    members: Array<{ id: string; name: string; profile: { real_name?: string; display_name?: string } }>;
+    response_metadata?: { next_cursor?: string };
   }> {
-    return this.call('users.search', { query, count: '20' });
+    const params: Record<string, string> = { limit: '200' };
+    if (cursor) params.cursor = cursor;
+    return this.call('users.list', params);
   }
 }
