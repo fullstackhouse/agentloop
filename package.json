@@ -1,5 +1,5 @@
 {
-  "name": "agentloop",
+  "name": "@fullstackhouse/agentloop",
   "version": "0.1.0",
   "description": "AI agent that monitors chat platforms and responds using Claude Code",
   "type": "module",
