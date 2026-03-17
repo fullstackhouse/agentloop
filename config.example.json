@@ -1,0 +1,16 @@
+{
+  "claude": { "model": "claude-sonnet-4-20250514" },
+  "platforms": ["slack"],
+  "slackChannels": ["#agent-playground"],
+  "mcpServers": {
+    "slack": {
+      "command": "npx",
+      "args": ["slack-mcp-server@latest"],
+      "env": {
+        "SLACK_MCP_XOXC_TOKEN": "${SLACK_XOXC}",
+        "SLACK_MCP_XOXD_TOKEN": "${SLACK_XOXD}",
+        "SLACK_MCP_ADD_MESSAGE_TOOL": "true"
+      }
+    }
+  }
+}
