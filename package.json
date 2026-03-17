@@ -1,17 +1,31 @@
 {
   "name": "agentloop",
   "version": "0.1.0",
+  "description": "AI agent that monitors chat platforms and responds using Claude Code",
   "type": "module",
   "engines": { "node": ">=22" },
+  "bin": {
+    "agentloop": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "dev": "tsx src/index.ts",
+    "dev": "tsx src/cli.ts serve",
     "build": "tsc",
-    "start": "node dist/index.js",
+    "start": "node dist/cli.js serve",
+    "prepublishOnly": "npm run build",
     "test:e2e": "tsx tests/e2e.ts"
   },
+  "keywords": [
+    "ai",
+    "agent",
+    "claude",
+    "slack",
+    "mcp"
+  ],
+  "license": "MIT",
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.39.0",
-    "@modelcontextprotocol/sdk": "^1.12.1",
     "dotenv": "^16.4.7"
   },
   "devDependencies": {

@@ -1,20 +1,37 @@
 # AgentLoop
 
-Platform-agnostic AI agent that monitors chat platforms via MCP and responds using Claude.
+AI agent that monitors chat platforms and responds using Claude Code subprocess.
 
 ## How It Works
 
-AgentLoop connects to chat platforms (Slack first) and listens for bot mentions. When mentioned, it sends the message to Claude along with all available MCP tools. Claude responds — optionally calling tools — and the reply is posted as a thread.
+AgentLoop connects to chat platforms (Slack first) and listens for bot mentions. When mentioned, it spawns Claude Code with the workspace directory set, giving Claude access to CLAUDE.md context, filesystem, and git. Claude responds — using built-in tools and MCP servers — and the reply is posted as a thread.
 
-Uses real-time connections (WebSocket/webhooks) when available, falling back to polling. Emoji reactions (👀 → ✅) track processing state, surviving restarts without a database.
+Emoji reactions (👀 → ✅) track processing state, surviving restarts without a database.
 
 ## Quick Start
 
 ```bash
-cp .env.example .env        # Add your API keys
-cp config.example.json config.json  # Configure channels & MCP servers
+cp .env.example .env
+cp config.example.json config.json
 npm install
 npm run dev
+```
+
+## CLI Usage
+
+```bash
+agentloop serve [options]
+
+Options:
+  --workspace, -w <path>   Workspace directory (default: cwd)
+  --config, -c <path>      Config file path (default: config.json)
+  --model, -m <model>      Claude model (overrides config)
+  --channel <name>         Slack channel filter (can repeat)
+  --help, -h               Show help
+
+Examples:
+  agentloop serve --workspace /app/monorepo
+  agentloop serve -w ./my-project --channel "#dev"
 ```
 
 ## Configuration
@@ -23,7 +40,7 @@ npm run dev
 
 | Variable | Description |
 |----------|-------------|
-| `ANTHROPIC_API_KEY` | Anthropic API key |
+| `ANTHROPIC_API_KEY` | Anthropic API key (used by Claude Code) |
 | `SLACK_XOXC` | Slack user token (browser session) |
 | `SLACK_XOXD` | Slack session token (browser session) |
 
@@ -33,7 +50,8 @@ npm run dev
 {
   "claude": { "model": "claude-sonnet-4-20250514" },
   "platforms": ["slack"],
-  "slackChannels": ["#agent-playground"],  // optional — omit to respond in all channels
+  "slackChannels": ["#agent-playground"],
+  "workspaceDir": "/path/to/your/project",
   "mcpServers": {
     "slack": {
       "command": "npx",
@@ -54,9 +72,15 @@ npm run dev
 docker-compose up
 ```
 
-## Testing
+Mount your workspace directory in `docker-compose.yml`:
 
-E2E tests verify the full flow — mentions, reactions, thread replies, and filtering. Requires a running agent:
+```yaml
+volumes:
+  - /path/to/your/repo:/workspace:ro
+command: ["--workspace", "/workspace"]
+```
+
+## Testing
 
 ```bash
 npm run test:e2e

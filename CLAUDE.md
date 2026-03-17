@@ -1,11 +1,12 @@
 # AgentLoop
 
-Platform-agnostic AI agent: monitors chat platforms via MCP, responds with Claude.
+Platform-agnostic AI agent: monitors chat platforms, responds using Claude Code subprocess.
 
 ## Tech Stack
 
 - TypeScript (strict, ESM), Node.js 22+
-- `@anthropic-ai/sdk`, `@modelcontextprotocol/sdk`, `dotenv`
+- Claude Code CLI (`npx @anthropic-ai/claude-code`) as subprocess
+- `dotenv` for environment variables
 - Build: `tsc` → JS. Dev: `tsx`
 
 ## Commands
@@ -21,12 +22,12 @@ npm run test:e2e   # E2E test (needs running agent)
 
 ```
 src/
-  index.ts          # Entry point, message processing
-  agent.ts          # Claude API wrapper + tool-use loop
-  mcp-client.ts     # MCP server manager + tool discovery
-  config.ts         # Config loader with env var substitution
+  cli.ts                   # CLI entry point (agentloop serve)
+  agent.ts                 # Wraps ClaudeCodeExecutor with system prompt
+  claude-code-executor.ts  # Spawns Claude Code subprocess
+  config.ts                # Config loader with env var substitution
   platforms/
-    slack.ts        # Slack adapter: message ingestion, reactions, thread replies
+    slack.ts               # Slack adapter: polling, reactions, thread replies
 ```
 
 ## Code Style
@@ -39,9 +40,10 @@ src/
 
 ## Architecture Notes
 
-- Message ingestion: prefer real-time (websocket/webhook), fall back to polling
+- Claude Code runs as subprocess with `cwd` set to workspace directory
+- Workspace cwd enables: CLAUDE.md loading, filesystem access, git awareness
+- MCP servers passed via `--mcp-config` flag to Claude Code
 - State via Slack reactions (✅) — no database needed
-- MCP tools auto-discovered from configured servers
 - Platform-agnostic design: add adapters in `src/platforms/`
 
 ## Infrastructure

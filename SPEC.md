@@ -2,15 +2,14 @@
 
 ## Overview
 
-Platform-agnostic AI agent that monitors chat platforms for mentions and responds using Claude. Connects to platforms via MCP, with tools auto-discovered from configured MCP servers.
+Platform-agnostic AI agent that monitors chat platforms for mentions and responds using Claude Code. Spawns Claude Code as subprocess with workspace directory set, giving Claude full filesystem access and CLAUDE.md context.
 
 ## Architecture
 
 ```
 Message Ingestion (websocket / webhook / polling fallback)
-├── MCP Client Manager (discovers tools from MCP servers)
 ├── Platform Adapters (Slack first, extensible to Discord/Telegram)
-├── Claude Agent (Anthropic SDK, tool-use loop)
+├── Claude Code Executor (subprocess with cwd set to workspace)
 └── Config Loader (JSON config with ${ENV_VAR} substitution)
 ```
 
@@ -28,8 +27,8 @@ The ingestion mechanism is an implementation detail of each platform adapter. Th
 1. Receive new message mentioning the bot (via adapter)
 2. Filter: must not have completion reaction (✅) already
 3. Add typing indicator reaction (👀)
-4. Send message + available MCP tools to Claude
-5. Claude responds, optionally calling tools (multi-turn)
+4. Spawn Claude Code subprocess with workspace cwd
+5. Claude responds, using built-in tools and MCP servers
 6. Post response as thread reply
 7. Replace 👀 with ✅
 
@@ -43,7 +42,8 @@ The ingestion mechanism is an implementation detail of each platform adapter. Th
   {
     "claude": { "model": "claude-sonnet-4-20250514" },
     "platforms": ["slack"],
-    "slackChannels": ["#channel"],  // optional — if omitted, responds in all channels
+    "slackChannels": ["#channel"],
+    "workspaceDir": "/path/to/workspace",
     "mcpServers": {
       "name": {
         "command": "npx",
@@ -54,11 +54,11 @@ The ingestion mechanism is an implementation detail of each platform adapter. Th
   }
   ```
 
-### MCP Client Manager (`src/mcp-client.ts`)
-- Spawns and manages MCP server processes (stdio transport)
-- Discovers available tools from each server
-- Routes tool calls to correct server
-- HTTP transport: planned, not yet implemented
+### Claude Code Executor (`src/claude-code-executor.ts`)
+- Spawns `npx @anthropic-ai/claude-code` as subprocess
+- Sets `cwd` to workspace directory (for CLAUDE.md loading, filesystem access)
+- Passes MCP server config via `--mcp-config` flag
+- Streams NDJSON output and extracts final response
 
 ### Platform: Slack (`src/platforms/slack.ts`)
 - Receives messages via best available transport (WebSocket > webhook > polling)
@@ -67,10 +67,9 @@ The ingestion mechanism is an implementation detail of each platform adapter. Th
 - Sends thread replies via MCP `conversations_add_message`
 
 ### Agent (`src/agent.ts`)
-- Wraps Anthropic SDK
-- Runs tool-use loop: send → check for tool calls → execute → send results → repeat
-- System prompt instructs Claude to behave as helpful assistant
-- All MCP tools available to Claude during conversation
+- Wraps ClaudeCodeExecutor
+- Passes system prompt for Slack assistant behavior
+- Delegates tool-use loop to Claude Code subprocess
 
 ### Main Loop (`src/index.ts`)
 - Entry point, starts platform adapters and processes incoming messages
@@ -80,7 +79,7 @@ The ingestion mechanism is an implementation detail of each platform adapter. Th
 
 - **Runtime**: Node.js 22+ (ESM)
 - **Language**: TypeScript (strict mode)
-- **Dependencies**: `@anthropic-ai/sdk`, `@modelcontextprotocol/sdk`, `dotenv`
+- **Dependencies**: `dotenv` (Claude Code handles API + MCP)
 - **Build**: `tsc` → JavaScript
 - **Dev**: `tsx` for on-the-fly TypeScript execution
 
@@ -93,7 +92,7 @@ The ingestion mechanism is an implementation detail of each platform adapter. Th
 ## Configuration
 
 ### Environment Variables
-- `ANTHROPIC_API_KEY` — Anthropic API key
+- `ANTHROPIC_API_KEY` — Anthropic API key (used by Claude Code subprocess)
 - `SLACK_XOXC` — Slack user token (browser session)
 - `SLACK_XOXD` — Slack session token (browser session)
 
