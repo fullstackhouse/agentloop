@@ -114,6 +114,27 @@ async function main(): Promise<void> {
     if (reacted) throw new Error('Agent reacted to non-mention message');
   });
 
+  // --- Test 2b: User filter - non-allowed user ignored (if slackUsers configured) ---
+  // This test only runs if SLACK_TEST_BLOCKED_* env vars are set (a third user not in slackUsers)
+  if (process.env.SLACK_TEST_BLOCKED_XOXC && process.env.SLACK_TEST_BLOCKED_XOXD) {
+    await test('mention from non-allowed user is ignored', async () => {
+      const blockedApi = new SlackApi(
+        process.env.SLACK_TEST_BLOCKED_XOXC!,
+        process.env.SLACK_TEST_BLOCKED_XOXD!,
+      );
+
+      const text = `<@${agentUserId}> blocked user test ${Date.now()}`;
+      const { ts } = await blockedApi.chatPostMessage(channelId, text);
+      console.log(`  Posted mention from blocked user ts=${ts}`);
+
+      await new Promise(r => setTimeout(r, 25_000));
+      const reacted = await hasReaction(channelId, ts, 'eyes') || await hasReaction(channelId, ts, 'white_check_mark');
+      if (reacted) throw new Error('Agent reacted to mention from non-allowed user');
+    });
+  } else {
+    console.log('⏭️  Skipping user filter test (SLACK_TEST_BLOCKED_* not set)');
+  }
+
   // --- Test 3: Multiple mentions in a thread each get separate replies ---
   await test('multiple mentions in thread get separate replies', async () => {
     const nonce = Date.now();
