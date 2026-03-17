@@ -101,4 +101,13 @@ export class SlackApi {
     if (cursor) params.cursor = cursor;
     return this.call('conversations.list', params);
   }
+
+  async usersList(cursor?: string): Promise<{
+    members: Array<{ id: string; name: string; profile: { real_name?: string; display_name?: string } }>;
+    response_metadata?: { next_cursor?: string };
+  }> {
+    const params: Record<string, string> = { limit: '200' };
+    if (cursor) params.cursor = cursor;
+    return this.call('users.list', params);
+  }
 }

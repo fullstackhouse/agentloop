@@ -10,6 +10,7 @@ export interface AppConfig {
   claude: { model: string };
   platforms: string[];
   slackChannels?: string[];
+  slackUsers?: string[];
   mcpServers: Record<string, McpServerConfig>;
 }
 

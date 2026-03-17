@@ -44,6 +44,7 @@ The ingestion mechanism is an implementation detail of each platform adapter. Th
     "claude": { "model": "claude-sonnet-4-20250514" },
     "platforms": ["slack"],
     "slackChannels": ["#channel"],  // optional — if omitted, responds in all channels
+    "slackUsers": ["Jacek Tomaszewski"],  // optional — if omitted, responds to all users
     "mcpServers": {
       "name": {
         "command": "npx",
@@ -63,6 +64,8 @@ The ingestion mechanism is an implementation detail of each platform adapter. Th
 ### Platform: Slack (`src/platforms/slack.ts`)
 - Receives messages via best available transport (WebSocket > webhook > polling)
 - Detects bot mentions (resolves bot user ID on startup via `users_search`)
+- Resolves allowed user display names to IDs on startup (if `slackUsers` configured)
+- Filters messages to only respond to allowed users (if configured)
 - Manages reactions (👀 typing, ✅ done) as persistent state
 - Sends thread replies via MCP `conversations_add_message`
 

@@ -27,7 +27,7 @@ async function main(): Promise<void> {
     if (!xoxc || !xoxd) throw new Error('SLACK_XOXC and SLACK_XOXD required');
 
     const slackApi = new SlackApi(xoxc, xoxd);
-    const adapter = new SlackAdapter(agent, slackApi, config.slackChannels);
+    const adapter = new SlackAdapter(agent, slackApi, config.slackChannels, config.slackUsers);
     await adapter.start();
     adapters.push(adapter);
   }

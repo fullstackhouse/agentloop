@@ -34,6 +34,7 @@ npm run dev
   "claude": { "model": "claude-sonnet-4-20250514" },
   "platforms": ["slack"],
   "slackChannels": ["#agent-playground"],  // optional — omit to respond in all channels
+  "slackUsers": ["Jacek Tomaszewski"],  // optional — omit to respond to all users
   "mcpServers": {
     "slack": {
       "command": "npx",
