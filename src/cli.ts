@@ -72,12 +72,15 @@ async function serve(options: CliOptions): Promise<void> {
 
   const config = loadConfig(configPath);
   const workspaceDir = options.workspace ? resolve(options.workspace) : config.workspaceDir || process.cwd();
-  const model = options.model || config.claude.model;
+  const model = options.model || config.claude?.model;
   const slackChannels = options.channels?.length ? options.channels : config.slackChannels;
 
-  console.log(`[agentloop] Model: ${model}`);
+  console.log(`[agentloop] Model: ${model || '(default)'}`);
   console.log(`[agentloop] Workspace: ${workspaceDir}`);
-  console.log(`[agentloop] MCP servers: ${Object.keys(config.mcpServers).join(', ')}`);
+  const mcpServerNames = Object.keys(config.mcpServers ?? {});
+  if (mcpServerNames.length) {
+    console.log(`[agentloop] MCP servers: ${mcpServerNames.join(', ')}`);
+  }
   if (slackChannels?.length) {
     console.log(`[agentloop] Channels: ${slackChannels.join(', ')}`);
   }
@@ -90,7 +93,7 @@ async function serve(options: CliOptions): Promise<void> {
 
   const adapters: { stop: () => void }[] = [];
 
-  if (config.platforms.includes('slack')) {
+  if (config.platforms?.includes('slack')) {
     const xoxc = process.env.SLACK_XOXC;
     const xoxd = process.env.SLACK_XOXD;
     if (!xoxc || !xoxd) {

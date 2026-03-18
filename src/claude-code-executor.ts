@@ -7,6 +7,7 @@ export interface ClaudeCodeOptions {
   mcpServers?: Record<string, { command: string; args: string[]; env?: Record<string, string> }>;
   systemPrompt?: string;
   allowedTools?: string[];
+  timeoutMs?: number;
 }
 
 interface StreamMessage {
@@ -42,8 +43,20 @@ export class ClaudeCodeExecutor {
         stdio: ['pipe', 'pipe', 'pipe'],
       });
 
+      // Close stdin immediately - Claude Code waits for EOF before processing --print prompt
+      proc.stdin.end();
+
       let result = '';
       const stderrChunks: string[] = [];
+      let timeoutId: ReturnType<typeof setTimeout> | undefined;
+      let timedOut = false;
+
+      if (this.options.timeoutMs) {
+        timeoutId = setTimeout(() => {
+          timedOut = true;
+          proc.kill('SIGTERM');
+        }, this.options.timeoutMs);
+      }
 
       const rl = createInterface({ input: proc.stdout });
 
@@ -62,6 +75,11 @@ export class ClaudeCodeExecutor {
       });
 
       proc.on('close', (code) => {
+        if (timeoutId) clearTimeout(timeoutId);
+        if (timedOut) {
+          reject(new Error(`Claude Code timed out after ${this.options.timeoutMs}ms`));
+          return;
+        }
         if (code !== 0 && code !== null) {
           const stderr = stderrChunks.join('');
           reject(new Error(`Claude Code exited with code ${code}: ${stderr}`));
@@ -71,6 +89,7 @@ export class ClaudeCodeExecutor {
       });
 
       proc.on('error', (err) => {
+        if (timeoutId) clearTimeout(timeoutId);
         reject(new Error(`Failed to spawn Claude Code: ${err.message}`));
       });
     });
@@ -78,6 +97,7 @@ export class ClaudeCodeExecutor {
 
   private buildArgs(prompt: string): string[] {
     const args: string[] = [
+      '--verbose',
       '--output-format', 'stream-json',
       '--print', prompt,
     ];

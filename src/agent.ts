@@ -6,9 +6,9 @@ const SYSTEM_PROMPT = `You are a helpful assistant in a Slack workspace. Respond
 Your text response will be posted as a reply automatically. Do NOT use messaging tools (like conversations_add_message) to send your reply — just respond with text. Use tools only for gathering information or performing actions.`;
 
 export interface AgentConfig {
-  model: string;
+  model?: string;
   workspaceDir?: string;
-  mcpServers: Record<string, McpServerConfig>;
+  mcpServers?: Record<string, McpServerConfig>;
 }
 
 export class Agent {

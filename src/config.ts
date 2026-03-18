@@ -7,12 +7,12 @@ export interface McpServerConfig {
 }
 
 export interface AppConfig {
-  claude: { model: string };
-  platforms: string[];
+  claude?: { model?: string };
+  platforms?: string[];
   slackChannels?: string[];
   slackUsers?: string[];
   workspaceDir?: string;  // Working directory for Claude Code subprocess
-  mcpServers: Record<string, McpServerConfig>;
+  mcpServers?: Record<string, McpServerConfig>;
 }
 
 function substituteEnvVars(value: unknown): unknown {
@@ -36,11 +36,10 @@ export function loadConfig(path = 'config.json'): AppConfig {
   const raw = JSON.parse(readFileSync(path, 'utf-8'));
   const config = substituteEnvVars(raw) as AppConfig;
 
-  if (!config.claude?.model) throw new Error('config: claude.model required');
-  if (!config.platforms?.length) throw new Error('config: platforms required');
-  if (!config.mcpServers || !Object.keys(config.mcpServers).length) {
-    throw new Error('config: mcpServers required');
-  }
+  // All fields optional - CLI provides defaults/overrides
+  config.claude = config.claude ?? {};
+  config.platforms = config.platforms ?? ['slack'];
+  config.mcpServers = config.mcpServers ?? {};
 
   return config;
 }
