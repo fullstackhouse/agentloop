@@ -11,6 +11,7 @@ export interface AppConfig {
   platforms: string[];
   slackChannels?: string[];
   slackUsers?: string[];
+  workspaceDir?: string;  // Working directory for Claude Code subprocess
   mcpServers: Record<string, McpServerConfig>;
 }
 

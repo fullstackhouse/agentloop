@@ -2,6 +2,7 @@
   "claude": { "model": "claude-sonnet-4-20250514" },
   "platforms": ["slack"],
   "slackChannels": ["#agent-playground"],
+  "workspaceDir": "/path/to/your/project",
   "mcpServers": {
     "slack": {
       "command": "npx",

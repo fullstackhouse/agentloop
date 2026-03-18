@@ -4,4 +4,6 @@ services:
     env_file: .env
     volumes:
       - ./config.json:/app/config.json:ro
+      - /path/to/workspace:/workspace:ro
+    command: ["--workspace", "/workspace"]
     restart: unless-stopped
