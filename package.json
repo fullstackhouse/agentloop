@@ -2,6 +2,14 @@
   "name": "@fullstackhouse/agentloop",
   "version": "0.4.1",
   "description": "AI agent that monitors chat platforms and responds using Claude Code",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fullstackhouse/agentloop.git"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "type": "module",
   "engines": { "node": ">=22" },
   "bin": {
