@@ -57,6 +57,5 @@ src/
 2. Commit: `git commit -m "chore: bump version to X.Y.Z"`
 3. Tag: `git tag -a vX.Y.Z -m "Release vX.Y.Z"`
 4. Push: `git push origin main && git push origin vX.Y.Z`
-5. Publish npm: `npm publish --access public` (requires OTP)
-6. Create GitHub release: `gh release create vX.Y.Z --title "vX.Y.Z" --notes "..."`
-   - This triggers CI workflow to build and push Docker image to `ghcr.io/fullstackhouse/agentloop`
+5. Create GitHub release: `gh release create vX.Y.Z --title "vX.Y.Z" --notes "..."`
+   - CI publishes npm package (OIDC provenance) and Docker image to `ghcr.io/fullstackhouse/agentloop`
