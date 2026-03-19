@@ -33,7 +33,15 @@ function substituteEnvVars(value: unknown): unknown {
 }
 
 export function loadConfig(path = 'config.json'): AppConfig {
-  const raw = JSON.parse(readFileSync(path, 'utf-8'));
+  console.log(`[config] Loading config from ${path}`);
+  const content = readFileSync(path, 'utf-8');
+  let raw: unknown;
+  try {
+    raw = JSON.parse(content);
+  } catch (e) {
+    console.error(`[config] Failed to parse ${path}:`, e);
+    throw e;
+  }
   const config = substituteEnvVars(raw) as AppConfig;
 
   // All fields optional - CLI provides defaults/overrides
@@ -41,5 +49,6 @@ export function loadConfig(path = 'config.json'): AppConfig {
   config.platforms = config.platforms ?? ['slack'];
   config.mcpServers = config.mcpServers ?? {};
 
+  console.log(`[config] Loaded successfully: platforms=${config.platforms.join(',')}, mcpServers=${Object.keys(config.mcpServers).length}`);
   return config;
 }

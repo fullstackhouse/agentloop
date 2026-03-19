@@ -86,35 +86,61 @@ export class SlackAdapter {
     try {
       const result = await this.slackApi.searchMessages(`<@${this.botUserId}>`);
       const messages = result.messages.matches;
+      console.log(`[slack] Poll found ${messages.length} messages mentioning bot`);
 
       for (const msg of messages) {
         const channelId = msg.channel?.id;
-        if (!channelId) continue;
+        if (!channelId) {
+          console.log(`[slack] Skipping message ${msg.ts}: no channel ID`);
+          continue;
+        }
+
+        const key = `${channelId}:${msg.ts}`;
 
         // Skip bot's own messages
-        if (msg.user === this.botUserId) continue;
+        if (msg.user === this.botUserId) {
+          console.log(`[slack] Skipping ${key}: bot's own message`);
+          continue;
+        }
 
         // Skip empty text
-        if (!msg.text?.trim()) continue;
+        if (!msg.text?.trim()) {
+          console.log(`[slack] Skipping ${key}: empty text`);
+          continue;
+        }
 
         // Channel filter
-        if (this.channelIds && !this.channelIds.has(channelId)) continue;
+        if (this.channelIds && !this.channelIds.has(channelId)) {
+          console.log(`[slack] Skipping ${key}: channel not in whitelist`);
+          continue;
+        }
 
         // User filter
-        if (this.allowedUserIds && !this.allowedUserIds.has(msg.user)) continue;
+        if (this.allowedUserIds && !this.allowedUserIds.has(msg.user)) {
+          console.log(`[slack] Skipping ${key}: user ${msg.user} not in allowlist`);
+          continue;
+        }
 
         // Currently processing
-        const key = `${channelId}:${msg.ts}`;
-        if (this.processing.has(key)) continue;
+        if (this.processing.has(key)) {
+          console.log(`[slack] Skipping ${key}: already processing`);
+          continue;
+        }
 
         // Check ✅ reaction via API (search results don't include reactions)
         try {
           const { message } = await this.slackApi.reactionsGet(channelId, msg.ts);
-          if (message.reactions?.some(r => r.name === 'white_check_mark')) continue;
-        } catch {
-          // If reactions.get fails, process anyway
+          if (message.reactions?.some(r => r.name === 'white_check_mark')) {
+            console.log(`[slack] Skipping ${key}: already has ✅ reaction`);
+            continue;
+          }
+        } catch (e) {
+          // If reaction check fails, skip to avoid duplicate processing
+          console.warn(`[slack] reactionsGet failed for ${key}, skipping:`, e);
+          continue;
         }
 
+        console.log(`[slack] Processing ${key}: "${msg.text.substring(0, 50)}${msg.text.length > 50 ? '...' : ''}"`);
         this.processMessage(channelId, msg).catch(e =>
           console.error(`[slack] Error processing message ${key}:`, e)
         );
@@ -127,32 +153,46 @@ export class SlackAdapter {
   private async processMessage(channel: string, msg: SlackMessage): Promise<void> {
     const key = `${channel}:${msg.ts}`;
     this.processing.add(key);
+    const startTime = Date.now();
 
     try {
       // Add 👀 (ignore already_reacted)
+      console.log(`[slack] ${key}: Adding 👀 reaction`);
       await this.slackApi.reactionsAdd(channel, msg.ts, 'eyes').catch(this.ignoreSlackError('already_reacted'));
 
       // Strip bot mention from text before sending to Claude
       const cleanText = msg.text.replace(new RegExp(`<@${this.botUserId}>\\s*`, 'g'), '').trim();
 
       // Get Claude's response
+      console.log(`[slack] ${key}: Sending to Claude (${cleanText.length} chars)`);
       const response = await this.agent.chat(cleanText);
+      console.log(`[slack] ${key}: Claude responded (${response.length} chars)`);
 
       // Reply in thread (use thread_ts if it's a threaded reply, otherwise use msg.ts)
       const threadTs = msg.thread_ts || msg.ts;
+      console.log(`[slack] ${key}: Posting reply to thread ${threadTs}`);
       await this.slackApi.chatPostMessage(channel, response, threadTs);
 
       // Remove 👀, add ✅
+      console.log(`[slack] ${key}: Marking complete with ✅`);
       await this.slackApi.reactionsRemove(channel, msg.ts, 'eyes').catch(this.ignoreSlackError('no_reaction'));
       await this.slackApi.reactionsAdd(channel, msg.ts, 'white_check_mark').catch(this.ignoreSlackError('already_reacted'));
+
+      const elapsed = Date.now() - startTime;
+      console.log(`[slack] ${key}: Completed successfully in ${elapsed}ms`);
     } catch (e) {
-      console.error(`[slack] Failed to process ${key}:`, e);
+      const elapsed = Date.now() - startTime;
+      console.error(`[slack] ${key}: Failed after ${elapsed}ms:`, e);
       try {
         const threadTs = msg.thread_ts || msg.ts;
+        console.log(`[slack] ${key}: Notifying user of error`);
         await this.slackApi.chatPostMessage(channel, `Error: ${e instanceof Error ? e.message : String(e)}`, threadTs);
-        await this.slackApi.reactionsRemove(channel, msg.ts, 'eyes').catch(() => {});
-      } catch {
-        // Best effort error reporting
+        await this.slackApi.reactionsRemove(channel, msg.ts, 'eyes').catch((e) => {
+          console.warn(`[slack] ${key}: Failed to remove eyes reaction:`, e);
+        });
+        console.log(`[slack] ${key}: Error notification sent`);
+      } catch (e) {
+        console.warn(`[slack] ${key}: Failed to notify user of error:`, e);
       }
     } finally {
       this.processing.delete(key);

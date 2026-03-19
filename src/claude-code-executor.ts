@@ -32,10 +32,15 @@ export class ClaudeCodeExecutor {
    */
   async execute(prompt: string): Promise<string> {
     const args = this.buildArgs(prompt);
+    const startTime = Date.now();
+    const cwd = this.options.workspaceDir || process.cwd();
+
+    console.log(`[claude-code] Spawning subprocess in ${cwd}`);
+    console.log(`[claude-code] Prompt: "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}"`);
 
     return new Promise((resolve, reject) => {
       const proc = spawn('claude', args, {
-        cwd: this.options.workspaceDir || process.cwd(),
+        cwd,
         env: {
           ...process.env,
           CLAUDE_CODE_ENTRYPOINT: 'sdk-agentloop',
@@ -54,6 +59,7 @@ export class ClaudeCodeExecutor {
       if (this.options.timeoutMs) {
         timeoutId = setTimeout(() => {
           timedOut = true;
+          console.warn(`[claude-code] Timeout after ${this.options.timeoutMs}ms, killing process`);
           proc.kill('SIGTERM');
         }, this.options.timeoutMs);
       }
@@ -76,20 +82,26 @@ export class ClaudeCodeExecutor {
 
       proc.on('close', (code) => {
         if (timeoutId) clearTimeout(timeoutId);
+        const elapsed = Date.now() - startTime;
+
         if (timedOut) {
+          console.error(`[claude-code] Timed out after ${elapsed}ms`);
           reject(new Error(`Claude Code timed out after ${this.options.timeoutMs}ms`));
           return;
         }
         if (code !== 0 && code !== null) {
           const stderr = stderrChunks.join('');
+          console.error(`[claude-code] Exited with code ${code} after ${elapsed}ms: ${stderr}`);
           reject(new Error(`Claude Code exited with code ${code}: ${stderr}`));
           return;
         }
+        console.log(`[claude-code] Completed in ${elapsed}ms (response: ${result.length} chars)`);
         resolve(result);
       });
 
       proc.on('error', (err) => {
         if (timeoutId) clearTimeout(timeoutId);
+        console.error(`[claude-code] Failed to spawn:`, err);
         reject(new Error(`Failed to spawn Claude Code: ${err.message}`));
       });
     });

@@ -31,8 +31,10 @@ export class SlackApi {
   ) {}
 
   private async call<T>(method: string, params: Record<string, string> = {}): Promise<T> {
+    const startTime = Date.now();
     const body = new URLSearchParams({ token: this.xoxc, ...params });
 
+    console.log(`[slack-api] ${method} request`);
     const res = await fetch(`${this.baseUrl}/${method}`, {
       method: 'POST',
       headers: {
@@ -45,12 +47,20 @@ export class SlackApi {
 
     if (res.status === 429) {
       const retryAfter = parseInt(res.headers.get('Retry-After') || '5', 10);
+      console.warn(`[slack-api] ${method} rate limited, retrying in ${retryAfter}s`);
       await new Promise(r => setTimeout(r, retryAfter * 1000));
       return this.call(method, params);
     }
 
     const data = await res.json() as { ok: boolean; error?: string } & T;
-    if (!data.ok) throw new SlackApiError(method, data.error || 'unknown');
+    const elapsed = Date.now() - startTime;
+
+    if (!data.ok) {
+      console.error(`[slack-api] ${method} failed in ${elapsed}ms: ${data.error}`);
+      throw new SlackApiError(method, data.error || 'unknown');
+    }
+
+    console.log(`[slack-api] ${method} succeeded in ${elapsed}ms`);
     return data;
   }
 

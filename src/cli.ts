@@ -135,6 +135,6 @@ async function main(): Promise<void> {
 }
 
 main().catch(e => {
-  console.error('Fatal:', e.message);
+  console.error('Fatal:', e instanceof Error ? e.message : String(e));
   process.exit(1);
 });
