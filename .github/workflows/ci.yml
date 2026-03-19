@@ -42,6 +42,9 @@ jobs:
 
       - run: npm ci
 
+      - name: Configure npm for OIDC
+        run: npm config set //registry.npmjs.org/:authType oidc
+
       - name: Publish to npm with OIDC
         run: npm publish --provenance --access public
 
