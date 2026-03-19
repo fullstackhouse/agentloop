@@ -163,13 +163,24 @@ export class SlackAdapter {
       // Strip bot mention from text before sending to Claude
       const cleanText = msg.text.replace(new RegExp(`<@${this.botUserId}>\\s*`, 'g'), '').trim();
 
+      // Build message with Slack context
+      const threadTs = msg.thread_ts || msg.ts;
+      const isInThread = !!msg.thread_ts;
+
+      const contextBlock = `<slack_context>
+Channel: ${channel}
+Thread: ${threadTs}${isInThread ? `
+Note: You are replying to a message in an existing thread. If the user references earlier messages or context you don't have, use the Slack MCP conversations_replies tool to fetch thread history.` : ''}
+</slack_context>
+
+${cleanText}`;
+
       // Get Claude's response
-      console.log(`[slack] ${key}: Sending to Claude (${cleanText.length} chars)`);
-      const response = await this.agent.chat(cleanText);
+      console.log(`[slack] ${key}: Sending to Claude (${contextBlock.length} chars)`);
+      const response = await this.agent.chat(contextBlock);
       console.log(`[slack] ${key}: Claude responded (${response.length} chars)`);
 
-      // Reply in thread (use thread_ts if it's a threaded reply, otherwise use msg.ts)
-      const threadTs = msg.thread_ts || msg.ts;
+      // Reply in thread
       console.log(`[slack] ${key}: Posting reply to thread ${threadTs}`);
       await this.slackApi.chatPostMessage(channel, response, threadTs);
 
