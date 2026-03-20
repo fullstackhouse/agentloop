@@ -10,6 +10,7 @@ export interface AppConfig {
   claude?: { model?: string };
   platforms?: string[];
   slackChannels?: string[];
+  slackChannelBlacklist?: string[];
   slackUsers?: string[];
   workspaceDir?: string;  // Working directory for Claude Code subprocess
   mcpServers?: Record<string, McpServerConfig>;

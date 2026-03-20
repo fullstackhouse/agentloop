@@ -6,12 +6,14 @@ export class SlackAdapter {
   private processing = new Set<string>();
   private timer: ReturnType<typeof setInterval> | null = null;
   private channelIds: Set<string> | null = null;
+  private blacklistedChannelIds: Set<string> | null = null;
   private allowedUserIds: Set<string> | null = null;
 
   constructor(
     private agent: Agent,
     private slackApi: SlackApi,
     private channels?: string[],
+    private channelBlacklist?: string[],
     private users?: string[],
     private pollIntervalMs = 10_000,
   ) {}
@@ -23,6 +25,10 @@ export class SlackAdapter {
 
     if (this.channels?.length) {
       await this.resolveChannelIds();
+    }
+
+    if (this.channelBlacklist?.length) {
+      await this.resolveBlacklistedChannelIds();
     }
 
     if (this.users?.length) {
@@ -57,6 +63,24 @@ export class SlackAdapter {
     } while (cursor);
 
     console.log(`[slack] Watching channels: ${[...this.channelIds].join(', ')}`);
+  }
+
+  private async resolveBlacklistedChannelIds(): Promise<void> {
+    const names = this.channelBlacklist!.map(c => c.replace(/^#/, ''));
+    this.blacklistedChannelIds = new Set<string>();
+
+    let cursor: string | undefined;
+    do {
+      const res = await this.slackApi.conversationsList(cursor);
+      for (const ch of res.channels) {
+        if (names.includes(ch.name)) {
+          this.blacklistedChannelIds.add(ch.id);
+        }
+      }
+      cursor = res.response_metadata?.next_cursor || undefined;
+    } while (cursor);
+
+    console.log(`[slack] Blacklisted channels: ${[...this.blacklistedChannelIds].join(', ')}`);
   }
 
   private async resolveUserIds(): Promise<void> {
@@ -109,9 +133,15 @@ export class SlackAdapter {
           continue;
         }
 
-        // Channel filter
+        // Channel allowlist filter
         if (this.channelIds && !this.channelIds.has(channelId)) {
-          console.log(`[slack] Skipping ${key}: channel not in whitelist`);
+          console.log(`[slack] Skipping ${key}: channel not in allowlist`);
+          continue;
+        }
+
+        // Channel blacklist filter
+        if (this.blacklistedChannelIds?.has(channelId)) {
+          console.log(`[slack] Skipping ${key}: channel is blacklisted`);
           continue;
         }
 

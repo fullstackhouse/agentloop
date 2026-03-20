@@ -15,11 +15,12 @@ USAGE
   agentloop serve [options]
 
 OPTIONS
-  --workspace, -w <path>   Workspace directory (default: cwd)
-  --config, -c <path>      Config file path (default: config.json)
-  --model, -m <model>      Claude model (overrides config)
-  --channel <name>         Slack channel filter (can repeat)
-  --help, -h               Show this help
+  --workspace, -w <path>        Workspace directory (default: cwd)
+  --config, -c <path>           Config file path (default: config.json)
+  --model, -m <model>           Claude model (overrides config)
+  --channel <name>              Slack channel allowlist (can repeat)
+  --channel-blacklist <name>    Slack channel blacklist (can repeat)
+  --help, -h                    Show this help
 
 ENVIRONMENT
   ANTHROPIC_API_KEY        Required for Claude Code
@@ -36,6 +37,7 @@ interface CliOptions {
   config?: string;
   model?: string;
   channels?: string[];
+  channelBlacklist?: string[];
   help?: boolean;
 }
 
@@ -47,6 +49,7 @@ function parseCliArgs(): { command: string; options: CliOptions } {
       config: { type: 'string', short: 'c' },
       model: { type: 'string', short: 'm' },
       channel: { type: 'string', multiple: true },
+      'channel-blacklist': { type: 'string', multiple: true },
       help: { type: 'boolean', short: 'h' },
     },
   });
@@ -58,6 +61,7 @@ function parseCliArgs(): { command: string; options: CliOptions } {
       config: values.config,
       model: values.model,
       channels: values.channel,
+      channelBlacklist: values['channel-blacklist'],
       help: values.help,
     },
   };
@@ -74,6 +78,7 @@ async function serve(options: CliOptions): Promise<void> {
   const workspaceDir = options.workspace ? resolve(options.workspace) : config.workspaceDir || process.cwd();
   const model = options.model || config.claude?.model;
   const slackChannels = options.channels?.length ? options.channels : config.slackChannels;
+  const slackChannelBlacklist = options.channelBlacklist?.length ? options.channelBlacklist : config.slackChannelBlacklist;
 
   console.log(`[agentloop] Model: ${model || '(default)'}`);
   console.log(`[agentloop] Workspace: ${workspaceDir}`);
@@ -83,6 +88,9 @@ async function serve(options: CliOptions): Promise<void> {
   }
   if (slackChannels?.length) {
     console.log(`[agentloop] Channels: ${slackChannels.join(', ')}`);
+  }
+  if (slackChannelBlacklist?.length) {
+    console.log(`[agentloop] Channel blacklist: ${slackChannelBlacklist.join(', ')}`);
   }
 
   const agent = new Agent({
@@ -102,7 +110,7 @@ async function serve(options: CliOptions): Promise<void> {
     }
 
     const slackApi = new SlackApi(xoxc, xoxd);
-    const adapter = new SlackAdapter(agent, slackApi, slackChannels);
+    const adapter = new SlackAdapter(agent, slackApi, slackChannels, slackChannelBlacklist);
     await adapter.start();
     adapters.push(adapter);
   }
