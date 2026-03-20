@@ -3,7 +3,7 @@ import { SlackApi, type SlackMessage } from '../src/slack-api.js';
 
 const TIMEOUT = 60_000; // 60s: ~10s search indexing + Claude response time
 const POLL_INTERVAL = 3_000;
-const TEST_CHANNEL = process.env.SLACK_TEST_CHANNEL || '#agent-playground';
+const TEST_CHANNEL = process.env.SLACK_TEST_CHANNEL || '#agentloop-test';
 
 // Agent's Slack API (for checking state)
 const agentApi = new SlackApi(
