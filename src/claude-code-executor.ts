@@ -1,10 +1,25 @@
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 
+interface StdioMcpServerConfig {
+  type?: 'stdio';
+  command: string;
+  args: string[];
+  env?: Record<string, string>;
+}
+
+interface HttpMcpServerConfig {
+  type: 'http';
+  url: string;
+  headers?: Record<string, string>;
+}
+
+type McpServerConfig = StdioMcpServerConfig | HttpMcpServerConfig;
+
 export interface ClaudeCodeOptions {
   workspaceDir?: string;
   model?: string;
-  mcpServers?: Record<string, { command: string; args: string[]; env?: Record<string, string> }>;
+  mcpServers?: Record<string, McpServerConfig>;
   systemPrompt?: string;
   allowedTools?: string[];
   timeoutMs?: number;

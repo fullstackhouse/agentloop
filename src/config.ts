@@ -1,10 +1,19 @@
 import { readFileSync } from 'node:fs';
 
-export interface McpServerConfig {
+export interface StdioMcpServerConfig {
+  type?: 'stdio';
   command: string;
   args: string[];
   env?: Record<string, string>;
 }
+
+export interface HttpMcpServerConfig {
+  type: 'http';
+  url: string;
+  headers?: Record<string, string>;
+}
+
+export type McpServerConfig = StdioMcpServerConfig | HttpMcpServerConfig;
 
 export interface AppConfig {
   claude?: { model?: string };

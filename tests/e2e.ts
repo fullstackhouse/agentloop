@@ -165,7 +165,38 @@ async function main(): Promise<void> {
     }
   });
 
-  // --- Test 4: Each mention gets a separate reply ---
+  // --- Test 4: HTTP MCP server (Linear) works ---
+  // This test requires LINEAR_API_KEY env var and the agent config to include linear MCP server
+  if (process.env.LINEAR_API_KEY) {
+    await test('HTTP MCP server (Linear) can be used', async () => {
+      const nonce = Date.now();
+
+      // Ask the agent to use Linear MCP to list teams - this verifies HTTP MCP works end-to-end
+      const text = `<@${agentUserId}> Use your Linear MCP tools to list teams. Just reply with the team names you find, nothing else. (test ${nonce})`;
+      const { ts } = await inquirerApi.chatPostMessage(channelId, text);
+      console.log(`  Posted Linear MCP test message ts=${ts}`);
+
+      const gotReaction = await waitForReaction(channelId, ts, 'white_check_mark');
+      if (!gotReaction) throw new Error('No ✅ reaction within timeout');
+
+      // Check that the reply contains something (Linear returned data)
+      const replies = await getThreadReplies(channelId, ts);
+      const botReply = findReplyTo(replies, ts);
+      if (!botReply) throw new Error('No bot reply found');
+
+      // The reply should contain team info from Linear (not an error message)
+      const replyText = botReply.text.toLowerCase();
+      if (replyText.includes('error') || replyText.includes('failed') || replyText.includes('unable') ||
+          replyText.includes("don't have access") || replyText.includes('not available')) {
+        throw new Error(`Linear MCP call appears to have failed: "${botReply.text}"`);
+      }
+      console.log(`  Linear MCP response: "${botReply.text.substring(0, 100)}..."`);
+    });
+  } else {
+    console.log('⏭️  Skipping HTTP MCP test (LINEAR_API_KEY not set)');
+  }
+
+  // --- Test 5: Each mention gets a separate reply ---
   await test('each mention gets a separate reply', async () => {
     const nonce = Date.now();
 

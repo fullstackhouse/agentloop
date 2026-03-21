@@ -20,11 +20,17 @@ export class Agent {
   private executor: ClaudeCodeExecutor;
 
   constructor(config: AgentConfig) {
+    // Auto-allow all tools from configured MCP servers
+    const allowedTools = config.mcpServers
+      ? Object.keys(config.mcpServers).map(name => `mcp__${name}__*`)
+      : [];
+
     this.executor = new ClaudeCodeExecutor({
       workspaceDir: config.workspaceDir,
       model: config.model,
       systemPrompt: SYSTEM_PROMPT,
       mcpServers: config.mcpServers,
+      allowedTools,
     });
   }
 
