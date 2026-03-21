@@ -1,4 +1,4 @@
-import { ClaudeCodeExecutor, ClaudeCodeOptions } from './claude-code-executor.js';
+import { ClaudeCodeExecutor, ExecuteResult } from './claude-code-executor.js';
 import type { McpServerConfig } from './config.js';
 
 const SYSTEM_PROMPT = `You are a helpful assistant in a Slack workspace. Respond concisely. Format responses for Slack (use mrkdwn, not markdown).
@@ -9,6 +9,11 @@ export interface AgentConfig {
   model?: string;
   workspaceDir?: string;
   mcpServers?: Record<string, McpServerConfig>;
+}
+
+export interface ChatResult {
+  response: string;
+  sessionId?: string;
 }
 
 export class Agent {
@@ -23,7 +28,8 @@ export class Agent {
     });
   }
 
-  async chat(userMessage: string): Promise<string> {
-    return this.executor.execute(userMessage);
+  async chat(userMessage: string, sessionId?: string): Promise<ChatResult> {
+    const result = await this.executor.execute(userMessage, sessionId);
+    return { response: result.response, sessionId: result.sessionId };
   }
 }

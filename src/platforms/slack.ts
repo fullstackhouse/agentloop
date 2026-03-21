@@ -3,11 +3,16 @@ import type { SlackApi, SlackApiError, SlackMessage } from '../slack-api.js';
 
 export class SlackAdapter {
   private botUserId = '';
+  private botUserName = '';
   private processing = new Set<string>();
   private timer: ReturnType<typeof setInterval> | null = null;
   private channelIds: Set<string> | null = null;
   private blacklistedChannelIds: Set<string> | null = null;
   private allowedUserIds: Set<string> | null = null;
+  /** Maps thread timestamps to session info for conversation continuity */
+  private threadSessions = new Map<string, { sessionId: string; lastBotTs: string }>();
+  /** Cache of user IDs to display names */
+  private userNames = new Map<string, string>();
 
   constructor(
     private agent: Agent,
@@ -21,6 +26,8 @@ export class SlackAdapter {
   async start(): Promise<void> {
     const auth = await this.slackApi.authTest();
     this.botUserId = auth.user_id;
+    this.botUserName = auth.user;
+    this.userNames.set(auth.user_id, auth.user);
     console.log(`[slack] Authenticated as ${auth.user} (${auth.user_id})`);
 
     if (this.channels?.length) {
@@ -91,6 +98,10 @@ export class SlackAdapter {
     do {
       const res = await this.slackApi.usersList(cursor);
       for (const user of res.members) {
+        // Cache all user names while we're iterating
+        const displayName = user.profile.display_name || user.profile.real_name || user.name;
+        this.userNames.set(user.id, displayName);
+
         if (names.has(user.profile.real_name || '') || names.has(user.profile.display_name || '')) {
           this.allowedUserIds.add(user.id);
         }
@@ -104,6 +115,14 @@ export class SlackAdapter {
     }
 
     console.log(`[slack] Allowed users: ${[...this.allowedUserIds].join(', ')}`);
+    console.log(`[slack] Cached ${this.userNames.size} user names`);
+  }
+
+  /**
+   * Get display name for a user ID. Returns cached name or falls back to user ID.
+   */
+  private getUserName(userId: string): string {
+    return this.userNames.get(userId) || userId;
   }
 
   private async poll(): Promise<void> {
@@ -192,27 +211,69 @@ export class SlackAdapter {
 
       // Strip bot mention from text before sending to Claude
       const cleanText = msg.text.replace(new RegExp(`<@${this.botUserId}>\\s*`, 'g'), '').trim();
+      const userName = this.getUserName(msg.user);
 
-      // Build message with Slack context
-      const threadTs = msg.thread_ts || msg.ts;
-      const isInThread = !!msg.thread_ts;
+      // Search results don't include thread_ts, so extract from permalink if available
+      // Permalink format for thread replies: ...?thread_ts=PARENT_TS&cid=...
+      let threadTs = msg.thread_ts;
+      if (!threadTs && msg.permalink) {
+        const match = msg.permalink.match(/thread_ts=([0-9.]+)/);
+        if (match) {
+          threadTs = match[1];
+        }
+      }
+      threadTs = threadTs || msg.ts;
 
-      const contextBlock = `<slack_context>
+      // Build prompt based on whether we're resuming an existing session
+      const existingSession = this.threadSessions.get(threadTs);
+      let prompt: string;
+
+      if (existingSession) {
+        // Fetch thread to find messages since our last response
+        const { messages } = await this.slackApi.conversationsReplies(channel, threadTs);
+        const newMessages = messages.filter(m =>
+          parseFloat(m.ts) > parseFloat(existingSession.lastBotTs) &&
+          m.ts !== msg.ts
+        );
+
+        let threadUpdate = '';
+        if (newMessages.length > 0) {
+          const lines = newMessages.map(m => {
+            const name = this.getUserName(m.user);
+            const text = m.text.replace(new RegExp(`<@${this.botUserId}>\\s*`, 'g'), '').trim();
+            return `- ${name} (${m.ts}): ${text}`;
+          });
+          threadUpdate = `<thread_update>\nMessages since your last response:\n${lines.join('\n')}\n</thread_update>\n\n`;
+        }
+
+        prompt = `${threadUpdate}<slack_message from="${userName}" ts="${msg.ts}">\n${cleanText}\n</slack_message>`;
+        console.log(`[slack] ${key}: Resuming session ${existingSession.sessionId} (${newMessages.length} new thread messages)`);
+      } else {
+        // New conversation - include full slack context
+        prompt = `<slack_context>
 Channel: ${channel}
-Thread: ${threadTs}${isInThread ? `
-Note: You are replying to a message in an existing thread. If the user references earlier messages or context you don't have, use the Slack MCP conversations_replies tool to fetch thread history.` : ''}
+Thread: ${threadTs}
 </slack_context>
 
-${cleanText}`;
+<slack_message from="${userName}" ts="${msg.ts}">
+${cleanText}
+</slack_message>`;
+        console.log(`[slack] ${key}: Starting new session`);
+      }
 
       // Get Claude's response
-      console.log(`[slack] ${key}: Sending to Claude (${contextBlock.length} chars)`);
-      const response = await this.agent.chat(contextBlock);
-      console.log(`[slack] ${key}: Claude responded (${response.length} chars)`);
+      console.log(`[slack] ${key}: Sending to Claude (${prompt.length} chars)`);
+      const { response, sessionId } = await this.agent.chat(prompt, existingSession?.sessionId);
+      console.log(`[slack] ${key}: Claude responded (${response.length} chars, sessionId: ${sessionId || 'none'})`);
 
       // Reply in thread
       console.log(`[slack] ${key}: Posting reply to thread ${threadTs}`);
-      await this.slackApi.chatPostMessage(channel, response, threadTs);
+      const botReply = await this.slackApi.chatPostMessage(channel, response, threadTs);
+
+      // Store session info for future messages in this thread
+      if (sessionId) {
+        this.threadSessions.set(threadTs, { sessionId, lastBotTs: botReply.ts });
+      }
 
       // Remove 👀, add ✅
       console.log(`[slack] ${key}: Marking complete with ✅`);

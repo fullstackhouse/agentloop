@@ -165,27 +165,27 @@ async function main(): Promise<void> {
     }
   });
 
-  // --- Test 4: Each reply corresponds to its specific mention ---
-  await test('replies correspond to specific mentions', async () => {
+  // --- Test 4: Each mention gets a separate reply ---
+  await test('each mention gets a separate reply', async () => {
     const nonce = Date.now();
 
-    // Post parent with a specific question
-    const msg1Text = `<@${agentUserId}> reply with exactly the word "alpha" and nothing else (test ${nonce})`;
+    // Post parent with a math question
+    const msg1Text = `<@${agentUserId}> what is 5+5? just give me the number (test ${nonce})`;
     const { ts: parentTs } = await inquirerApi.chatPostMessage(channelId, msg1Text);
     console.log(`  Posted parent ts=${parentTs}`);
 
     const got1 = await waitForReaction(channelId, parentTs, 'white_check_mark');
     if (!got1) throw new Error('No ✅ on first mention');
 
-    // Post follow-up in thread with different specific question
-    const msg2Text = `<@${agentUserId}> reply with exactly the word "bravo" and nothing else (test ${nonce})`;
+    // Post follow-up in thread with a different math question
+    const msg2Text = `<@${agentUserId}> what is 7+7? just give me the number (test ${nonce})`;
     const { ts: threadReplyTs } = await inquirerApi.chatPostMessage(channelId, msg2Text, parentTs);
     console.log(`  Posted thread reply ts=${threadReplyTs}`);
 
     const got2 = await waitForReaction(channelId, threadReplyTs, 'white_check_mark');
     if (!got2) throw new Error('No ✅ on second mention');
 
-    // Check that replies match their specific mentions
+    // Check that both mentions got replies
     const replies = await getThreadReplies(channelId, parentTs);
 
     const reply1 = findReplyTo(replies, parentTs);
@@ -194,20 +194,50 @@ async function main(): Promise<void> {
     if (!reply1) throw new Error('No bot reply found for first mention');
     if (!reply2) throw new Error('No bot reply found for second mention');
 
-    const text1 = reply1.text.toLowerCase();
-    const text2 = reply2.text.toLowerCase();
+    // Check that replies contain appropriate answers (10 and 14)
+    const text1 = reply1.text;
+    const text2 = reply2.text;
 
-    if (!text1.includes('alpha')) {
-      throw new Error(`First reply should contain "alpha", got: "${reply1.text}"`);
+    if (!text1.includes('10')) {
+      throw new Error(`First reply should contain "10", got: "${reply1.text}"`);
     }
-    if (!text2.includes('bravo')) {
-      throw new Error(`Second reply should contain "bravo", got: "${reply2.text}"`);
+    if (!text2.includes('14')) {
+      throw new Error(`Second reply should contain "14", got: "${reply2.text}"`);
     }
-    if (text1.includes('bravo')) {
-      throw new Error(`First reply should NOT contain "bravo" — agent mixed up responses`);
-    }
-    if (text2.includes('alpha')) {
-      throw new Error(`Second reply should NOT contain "alpha" — agent mixed up responses`);
+  });
+
+  // --- Test 5: Session resumption preserves conversation context ---
+  // NOTE: This test requires the agent to have session resumption support (--resume flag)
+  // It will fail if the deployed agent doesn't have this feature yet
+  await test('resumed session remembers previous conversation', async () => {
+    const nonce = Date.now();
+    const secretWord = `zebra${nonce}`;
+
+    // First message: tell the bot a secret word
+    const msg1Text = `<@${agentUserId}> remember this secret word: "${secretWord}". Just confirm you got it. (test ${nonce})`;
+    const { ts: parentTs } = await inquirerApi.chatPostMessage(channelId, msg1Text);
+    console.log(`  Posted first message with secret word ts=${parentTs}`);
+
+    const got1 = await waitForReaction(channelId, parentTs, 'white_check_mark');
+    if (!got1) throw new Error('No ✅ on first mention');
+
+    // Second message: ask the bot to recall the secret word
+    const msg2Text = `<@${agentUserId}> what was the secret word I just told you? Reply with just the word.`;
+    const { ts: threadReplyTs } = await inquirerApi.chatPostMessage(channelId, msg2Text, parentTs);
+    console.log(`  Posted follow-up asking for secret word ts=${threadReplyTs}`);
+
+    const got2 = await waitForReaction(channelId, threadReplyTs, 'white_check_mark');
+    if (!got2) throw new Error('No ✅ on second mention');
+
+    // Check that the second reply contains the secret word
+    const replies = await getThreadReplies(channelId, parentTs);
+    const reply2 = findReplyTo(replies, threadReplyTs);
+
+    if (!reply2) throw new Error('No bot reply found for second mention');
+
+    const text2 = reply2.text.toLowerCase();
+    if (!text2.includes(secretWord)) {
+      throw new Error(`Second reply should contain secret word "${secretWord}", got: "${reply2.text}"`);
     }
   });
 

@@ -10,6 +10,11 @@ export interface ClaudeCodeOptions {
   timeoutMs?: number;
 }
 
+export interface ExecuteResult {
+  response: string;
+  sessionId?: string;
+}
+
 interface StreamMessage {
   type: string;
   subtype?: string;
@@ -29,13 +34,14 @@ export class ClaudeCodeExecutor {
   /**
    * Send a prompt to Claude Code and return the final response text.
    * Handles the full agent loop internally (tool use, etc).
+   * @param sessionId - Optional session ID to resume a previous conversation
    */
-  async execute(prompt: string): Promise<string> {
-    const args = this.buildArgs(prompt);
+  async execute(prompt: string, sessionId?: string): Promise<ExecuteResult> {
+    const args = this.buildArgs(prompt, sessionId);
     const startTime = Date.now();
     const cwd = this.options.workspaceDir || process.cwd();
 
-    console.log(`[claude-code] Spawning subprocess in ${cwd}`);
+    console.log(`[claude-code] Spawning subprocess in ${cwd}${sessionId ? ` (resuming session ${sessionId})` : ''}`);
     console.log(`[claude-code] Prompt: "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}"`);
 
     return new Promise((resolve, reject) => {
@@ -52,6 +58,7 @@ export class ClaudeCodeExecutor {
       proc.stdin.end();
 
       let result = '';
+      let capturedSessionId: string | undefined;
       const stderrChunks: string[] = [];
       let timeoutId: ReturnType<typeof setTimeout> | undefined;
       let timedOut = false;
@@ -70,6 +77,9 @@ export class ClaudeCodeExecutor {
         if (!line.trim()) return;
         try {
           const msg: StreamMessage = JSON.parse(line);
+          if (msg.session_id) {
+            capturedSessionId = msg.session_id;
+          }
           this.handleMessage(msg, (text) => { result = text; });
         } catch {
           // Ignore non-JSON lines (e.g., npm output)
@@ -95,8 +105,8 @@ export class ClaudeCodeExecutor {
           reject(new Error(`Claude Code exited with code ${code}: ${stderr}`));
           return;
         }
-        console.log(`[claude-code] Completed in ${elapsed}ms (response: ${result.length} chars)`);
-        resolve(result);
+        console.log(`[claude-code] Completed in ${elapsed}ms (response: ${result.length} chars, sessionId: ${capturedSessionId || 'none'})`);
+        resolve({ response: result, sessionId: capturedSessionId });
       });
 
       proc.on('error', (err) => {
@@ -107,27 +117,33 @@ export class ClaudeCodeExecutor {
     });
   }
 
-  private buildArgs(prompt: string): string[] {
+  private buildArgs(prompt: string, sessionId?: string): string[] {
     const args: string[] = [
       '--verbose',
       '--output-format', 'stream-json',
       '--print', prompt,
     ];
 
-    if (this.options.model) {
-      args.push('--model', this.options.model);
-    }
+    if (sessionId) {
+      // Resuming existing session - it already has system prompt, model, tools configured
+      args.push('--resume', sessionId);
+    } else {
+      // New session - pass all configuration
+      if (this.options.model) {
+        args.push('--model', this.options.model);
+      }
 
-    if (this.options.systemPrompt) {
-      args.push('--system-prompt', this.options.systemPrompt);
-    }
+      if (this.options.systemPrompt) {
+        args.push('--system-prompt', this.options.systemPrompt);
+      }
 
-    if (this.options.allowedTools?.length) {
-      args.push('--allowedTools', this.options.allowedTools.join(','));
-    }
+      if (this.options.allowedTools?.length) {
+        args.push('--allowedTools', this.options.allowedTools.join(','));
+      }
 
-    if (this.options.mcpServers && Object.keys(this.options.mcpServers).length > 0) {
-      args.push('--mcp-config', JSON.stringify({ mcpServers: this.options.mcpServers }));
+      if (this.options.mcpServers && Object.keys(this.options.mcpServers).length > 0) {
+        args.push('--mcp-config', JSON.stringify({ mcpServers: this.options.mcpServers }));
+      }
     }
 
     return args;
