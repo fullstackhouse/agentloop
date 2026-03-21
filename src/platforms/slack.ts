@@ -1,3 +1,4 @@
+import { slackifyMarkdown } from 'slackify-markdown';
 import type { Agent } from '../agent.js';
 import type { SlackApi, SlackApiError, SlackMessage } from '../slack-api.js';
 
@@ -266,9 +267,10 @@ ${cleanText}
       const { response, sessionId } = await this.agent.chat(prompt, existingSession?.sessionId);
       console.log(`[slack] ${key}: Claude responded (${response.length} chars, sessionId: ${sessionId || 'none'})`);
 
-      // Reply in thread
+      // Reply in thread (convert markdown to Slack mrkdwn)
       console.log(`[slack] ${key}: Posting reply to thread ${threadTs}`);
-      const botReply = await this.slackApi.chatPostMessage(channel, response, threadTs);
+      const mrkdwnResponse = slackifyMarkdown(response);
+      const botReply = await this.slackApi.chatPostMessage(channel, mrkdwnResponse, threadTs);
 
       // Store session info for future messages in this thread
       if (sessionId) {
