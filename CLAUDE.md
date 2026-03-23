@@ -15,8 +15,22 @@ Platform-agnostic AI agent: monitors chat platforms, responds using Claude Code 
 npm run dev        # Run with tsx (dev)
 npm run build      # Compile TypeScript
 npm start          # Run compiled JS
-npm run test:e2e   # E2E test (needs running agent)
+npm run test:e2e   # E2E test (see below)
 ```
+
+## Running E2E Tests
+
+E2E tests require a running agentloop instance connected to Slack:
+
+```bash
+# Terminal 1: Start the agent
+npm run dev
+
+# Terminal 2: Run tests
+npm run test:e2e
+```
+
+The tests post messages to the configured Slack channel and verify the agent responds with ✅ reactions.
 
 ## Project Structure
 
