@@ -38,11 +38,11 @@ Examples:
 
 ### Environment Variables
 
-| Variable | Description |
-|----------|-------------|
+| Variable            | Description                             |
+| ------------------- | --------------------------------------- |
 | `ANTHROPIC_API_KEY` | Anthropic API key (used by Claude Code) |
-| `SLACK_XOXC` | Slack user token (browser session) |
-| `SLACK_XOXD` | Slack session token (browser session) |
+| `SLACK_XOXC`        | Slack user token (browser session)      |
+| `SLACK_XOXD`        | Slack session token (browser session)   |
 
 ### config.json
 
@@ -50,7 +50,7 @@ Examples:
 {
   "claude": { "model": "claude-sonnet-4-20250514" },
   "platforms": ["slack"],
-  "slackChannels": ["#agent-playground"],
+  "slackChannels": ["#agentloop-test"],
   "slackUsers": ["Jacek Tomaszewski"],
   "workspaceDir": "/path/to/your/project",
   "mcpServers": {
