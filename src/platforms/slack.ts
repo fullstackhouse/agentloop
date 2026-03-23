@@ -225,33 +225,9 @@ export class SlackAdapter {
       }
       threadTs = threadTs || msg.ts;
 
-      // Build prompt based on whether we're resuming an existing session
+      // Build prompt with slack context - Claude can query thread history via Slack MCP if needed
       const existingSession = this.threadSessions.get(threadTs);
-      let prompt: string;
-
-      if (existingSession) {
-        // Fetch thread to find messages since our last response
-        const { messages } = await this.slackApi.conversationsReplies(channel, threadTs);
-        const newMessages = messages.filter(m =>
-          parseFloat(m.ts) > parseFloat(existingSession.lastBotTs) &&
-          m.ts !== msg.ts
-        );
-
-        let threadUpdate = '';
-        if (newMessages.length > 0) {
-          const lines = newMessages.map(m => {
-            const name = this.getUserName(m.user);
-            const text = m.text.replace(new RegExp(`<@${this.botUserId}>\\s*`, 'g'), '').trim();
-            return `- ${name} (${m.ts}): ${text}`;
-          });
-          threadUpdate = `<thread_update>\nMessages since your last response:\n${lines.join('\n')}\n</thread_update>\n\n`;
-        }
-
-        prompt = `${threadUpdate}<slack_message from="${userName}" ts="${msg.ts}">\n${cleanText}\n</slack_message>`;
-        console.log(`[slack] ${key}: Resuming session ${existingSession.sessionId} (${newMessages.length} new thread messages)`);
-      } else {
-        // New conversation - include full slack context
-        prompt = `<slack_context>
+      const prompt = `<slack_context>
 Channel: ${channel}
 Thread: ${threadTs}
 </slack_context>
@@ -259,6 +235,10 @@ Thread: ${threadTs}
 <slack_message from="${userName}" ts="${msg.ts}">
 ${cleanText}
 </slack_message>`;
+
+      if (existingSession) {
+        console.log(`[slack] ${key}: Resuming session ${existingSession.sessionId}`);
+      } else {
         console.log(`[slack] ${key}: Starting new session`);
       }
 

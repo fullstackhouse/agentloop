@@ -15,6 +15,22 @@ export interface HttpMcpServerConfig {
 
 export type McpServerConfig = StdioMcpServerConfig | HttpMcpServerConfig;
 
+/**
+ * Default Slack MCP server config.
+ * Uses official @modelcontextprotocol/server-slack
+ * Requires SLACK_BOT_TOKEN and SLACK_TEAM_ID env vars.
+ */
+export function getDefaultSlackMcp(): StdioMcpServerConfig {
+  return {
+    command: 'npx',
+    args: ['-y', '@modelcontextprotocol/server-slack'],
+    env: {
+      SLACK_BOT_TOKEN: process.env.SLACK_BOT_TOKEN || '',
+      SLACK_TEAM_ID: process.env.SLACK_TEAM_ID || '',
+    },
+  };
+}
+
 export interface AppConfig {
   claude?: { model?: string };
   platforms?: string[];
@@ -58,6 +74,12 @@ export function loadConfig(path = 'config.json'): AppConfig {
   config.claude = config.claude ?? {};
   config.platforms = config.platforms ?? ['slack'];
   config.mcpServers = config.mcpServers ?? {};
+
+  // Add default Slack MCP if no MCP servers configured and using Slack platform
+  if (Object.keys(config.mcpServers).length === 0 && config.platforms.includes('slack')) {
+    config.mcpServers.slack = getDefaultSlackMcp();
+    console.log('[config] Added default Slack MCP server');
+  }
 
   console.log(`[config] Loaded successfully: platforms=${config.platforms.join(',')}, mcpServers=${Object.keys(config.mcpServers).length}`);
   return config;
