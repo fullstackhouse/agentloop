@@ -14,6 +14,8 @@ export class SlackAdapter {
   private threadSessions = new Map<string, { sessionId: string; lastBotTs: string }>();
   /** Cache of user IDs to display names */
   private userNames = new Map<string, string>();
+  /** Tracks retry attempts per message */
+  private retryCount = new Map<string, number>();
 
   constructor(
     private agent: Agent,
@@ -22,6 +24,7 @@ export class SlackAdapter {
     private channelBlacklist?: string[],
     private users?: string[],
     private pollIntervalMs = 10_000,
+    private maxRetries = 3,
   ) {}
 
   async start(): Promise<void> {
@@ -262,11 +265,25 @@ ${cleanText}
       await this.slackApi.reactionsRemove(channel, msg.ts, 'eyes').catch(this.ignoreSlackError('no_reaction'));
       await this.slackApi.reactionsAdd(channel, msg.ts, 'white_check_mark').catch(this.ignoreSlackError('already_reacted'));
 
+      // Clear retry counter on success
+      this.retryCount.delete(key);
+
       const elapsed = Date.now() - startTime;
       console.log(`[slack] ${key}: Completed successfully in ${elapsed}ms`);
     } catch (e) {
       const elapsed = Date.now() - startTime;
-      console.error(`[slack] ${key}: Failed after ${elapsed}ms:`, e);
+      const attempt = (this.retryCount.get(key) || 0) + 1;
+      this.retryCount.set(key, attempt);
+
+      if (attempt < this.maxRetries) {
+        console.error(`[slack] ${key}: Failed after ${elapsed}ms (attempt ${attempt}/${this.maxRetries}), will retry:`, e);
+        // Don't add ✅, let next poll retry
+        return;
+      }
+
+      console.error(`[slack] ${key}: Failed after ${elapsed}ms (attempt ${attempt}/${this.maxRetries}, giving up):`, e);
+      this.retryCount.delete(key);
+
       try {
         const threadTs = msg.thread_ts || msg.ts;
         console.log(`[slack] ${key}: Notifying user of error`);
@@ -274,6 +291,8 @@ ${cleanText}
         await this.slackApi.reactionsRemove(channel, msg.ts, 'eyes').catch((e) => {
           console.warn(`[slack] ${key}: Failed to remove eyes reaction:`, e);
         });
+        // Add ✅ after max retries to prevent endless retry loop
+        await this.slackApi.reactionsAdd(channel, msg.ts, 'white_check_mark').catch(this.ignoreSlackError('already_reacted'));
         console.log(`[slack] ${key}: Error notification sent`);
       } catch (e) {
         console.warn(`[slack] ${key}: Failed to notify user of error:`, e);

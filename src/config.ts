@@ -37,6 +37,7 @@ export interface AppConfig {
   slackChannels?: string[];
   slackChannelBlacklist?: string[];
   slackUsers?: string[];
+  maxRetries?: number;  // Max retries before giving up on a message (default: 3)
   workspaceDir?: string;  // Working directory for Claude Code subprocess
   mcpServers?: Record<string, McpServerConfig>;
 }
