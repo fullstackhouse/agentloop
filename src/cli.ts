@@ -110,7 +110,15 @@ async function serve(options: CliOptions): Promise<void> {
     }
 
     const slackApi = new SlackApi(xoxc, xoxd);
-    const adapter = new SlackAdapter(agent, slackApi, slackChannels, slackChannelBlacklist);
+    const adapter = new SlackAdapter(
+      agent,
+      slackApi,
+      slackChannels,
+      slackChannelBlacklist,
+      config.slackUsers,
+      10_000,  // pollIntervalMs
+      config.maxRetries,
+    );
     await adapter.start();
     adapters.push(adapter);
   }
