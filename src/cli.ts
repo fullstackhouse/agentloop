@@ -8,6 +8,8 @@ import { Agent } from './agent.js';
 import { SlackApi } from './slack-api.js';
 import { SlackAdapter } from './platforms/slack.js';
 
+const DEFAULT_MODEL = 'haiku';  // Cost-effective default; override with --model or config
+
 const HELP = `
 agentloop - AI agent that monitors chat platforms and responds using Claude Code
 
@@ -17,7 +19,7 @@ USAGE
 OPTIONS
   --workspace, -w <path>        Workspace directory (default: cwd)
   --config, -c <path>           Config file path (default: config.json)
-  --model, -m <model>           Claude model (overrides config)
+  --model, -m <model>           Claude model: haiku, sonnet, opus (default: haiku)
   --channel <name>              Slack channel allowlist (can repeat)
   --channel-blacklist <name>    Slack channel blacklist (can repeat)
   --help, -h                    Show this help
@@ -76,12 +78,12 @@ async function serve(options: CliOptions): Promise<void> {
 
   const config = loadConfig(configPath);
   const workspaceDir = options.workspace ? resolve(options.workspace) : config.workspaceDir || process.cwd();
-  const model = options.model || config.claude?.model;
+  const model = options.model || config.claude?.model || DEFAULT_MODEL;
   const slackChannels = options.channels?.length ? options.channels : config.slackChannels;
   const slackChannelBlacklist = options.channelBlacklist?.length ? options.channelBlacklist : config.slackChannelBlacklist;
   const slackUsers = config.slackUsers;
 
-  console.log(`[agentloop] Model: ${model || '(default)'}`);
+  console.log(`[agentloop] Model: ${model}`);
   console.log(`[agentloop] Workspace: ${workspaceDir}`);
   const mcpServerNames = Object.keys(config.mcpServers ?? {});
   if (mcpServerNames.length) {
