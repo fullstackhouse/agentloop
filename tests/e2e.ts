@@ -24,6 +24,11 @@ async function setup(): Promise<void> {
   const auth = await agentApi.authTest();
   agentUserId = auth.user_id;
 
+  // Log inquirer info for slackUsers config help
+  const inquirerAuth = await inquirerApi.authTest();
+  console.log(`Inquirer: ${inquirerAuth.user_id} (${inquirerAuth.user})`);
+  console.log(`  To test user filter, configure: slackUsers: ["<inquirer's display_name or real_name>"]`);
+
   // Resolve test channel ID
   let cursor: string | undefined;
   do {

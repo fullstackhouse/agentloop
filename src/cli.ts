@@ -79,6 +79,7 @@ async function serve(options: CliOptions): Promise<void> {
   const model = options.model || config.claude?.model;
   const slackChannels = options.channels?.length ? options.channels : config.slackChannels;
   const slackChannelBlacklist = options.channelBlacklist?.length ? options.channelBlacklist : config.slackChannelBlacklist;
+  const slackUsers = config.slackUsers;
 
   console.log(`[agentloop] Model: ${model || '(default)'}`);
   console.log(`[agentloop] Workspace: ${workspaceDir}`);
@@ -91,6 +92,9 @@ async function serve(options: CliOptions): Promise<void> {
   }
   if (slackChannelBlacklist?.length) {
     console.log(`[agentloop] Channel blacklist: ${slackChannelBlacklist.join(', ')}`);
+  }
+  if (slackUsers?.length) {
+    console.log(`[agentloop] User allowlist: ${slackUsers.join(', ')}`);
   }
 
   const agent = new Agent({
@@ -115,7 +119,7 @@ async function serve(options: CliOptions): Promise<void> {
       slackApi,
       slackChannels,
       slackChannelBlacklist,
-      config.slackUsers,
+      slackUsers,
       10_000,  // pollIntervalMs
       config.maxRetries,
     );
